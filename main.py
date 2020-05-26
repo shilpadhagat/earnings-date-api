@@ -1,14 +1,14 @@
-import sys, requests
+import requests
 from bs4 import BeautifulSoup
-import os
-import sqlalchemy
 import pymysql
 from pymysql.err import OperationalError
+import arrow
+import time
+import os
 
-CONNECTION_NAME = 'poised-lens-267620:us-east1:personalproject1'
-DB_HOST = '35.237.194.3'
+DB_HOST = os.environ.get("DB_HOST")
 DB_USER = os.environ.get("DB_USER")
-DB_PASSWORD = os.environ.get("DB_PASS")
+DB_PASSWORD = os.environ.get("DB_PASSWORD")
 DB_NAME = os.environ.get("DB_NAME")
 
 mysql_config = {
@@ -35,67 +35,116 @@ def __get_cursor():
         mysql_conn.ping(reconnect=True)
         return mysql_conn.cursor()
 
-# [START functions_helloworld_pubsub]
-def hello_pubsub():
-    """Background Cloud Function to be triggered by Pub/Sub.
-    Args:
-         event (dict):  The dictionary with data specific to this type of
-         event. The `data` field contains the PubsubMessage message. The
-         `attributes` field will contain custom attributes if there are any.
-         context (google.cloud.functions.Context): The Cloud Functions event
-         metadata. The `event_id` field contains the Pub/Sub message ID. The
-         `timestamp` field contains the publish time.
-    """
-    earnings_date_scraper()
+def cloud_function_update_earnings(payload, context):
+    start = arrow.utcnow().floor('day')
+    end = arrow.utcnow().floor('day').shift(days=60)
+    while start < end:
+        earnings_date_scraper(start.naive)
+        start = start.shift(days=1)
+    earnings_date_scraper(start.naive)
 
-# [END functions_helloworld_pubsub]
-
-def earnings_date_scraper():
-    data = []
-    url = "https://finance.yahoo.com/calendar/earnings?from=2020-02-09&to=2020-02-15&day=2020-02-09"
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'html.parser')
-    results = soup.find(id='cal-res-table')
+def earnings_date_scraper(for_date):
+    time.sleep(2)
+    company_data = []
+    # Sending an HTTP request to a URL. Make a GET request to fetch the raw HTML content
+    earnings_for_date = for_date.strftime('%Y-%m-%d')
+    payload = {
+        'day': earnings_for_date
+    }
+    earnings_api_url = "https://finance.yahoo.com/calendar/earnings"
+    earnings = requests.get(earnings_api_url, params=payload)
     
+    # Parse the HTML content
+    soup = BeautifulSoup(earnings.text, 'html.parser')
+    results = soup.find(id='cal-res-table')
+    if not results:
+        return
     table = results.find('table', class_="W(100%)")
     
-    table_body = table.find('tbody')
+    table_head = table.find('thead')
+    head_row = table_head.find('tr')
+    cols = head_row.find_all('th')
+    col_names = [ele.text.strip() for ele in cols]
+    company_data.append([name for name in col_names if name])
 
+    table_body = table.find('tbody')
     rows = table_body.find_all('tr')
     for row in rows:
-        cols = row.find_all('td')
-        cols = [ele.text.strip() for ele in cols]
-        data.append([ele for ele in cols if ele])
-    print(data)
-    save_earnings_data(data)
+        row_data = row.find_all('td')
+        row_vals = [data.text.strip() for data in row_data]
+        company_data.append([val for val in row_vals if val])
 
-def save_earnings_data(data):
-    ensure_mysql_conn()
+    for idx, col_name in enumerate(company_data[0]):
+        if col_name == 'Symbol':
+            ticker_idx = idx
+        elif col_name == 'Company':
+            company_name_idx = idx
+        elif col_name == 'Earnings Call Time':
+            earnings_time_idx = idx
 
-    sql_insert_query = """INSERT INTO `company`
-        (`name`, `ticker`)
+    records_to_insert = []
+    for datum in company_data[1:]:
+        records_to_insert.append([
+            get_company_id(datum[ticker_idx], datum[company_name_idx]),
+            earnings_for_date,
+            datum[earnings_time_idx]
+        ])
+    save_earnings_data(records_to_insert)
+
+def store_companies(ticker, company_name):
+    sql_insert_query = """INSERT INTO `companies`
+        (`ticker`, `name`)
     VALUES
-        ('abc', 'xyz')
-    ON DUPLICATE KEY UPDATE
-        `actual` = VALUES(actual)"""
+        (%s, %s)"""
 
     with __get_cursor() as cursor:
         try:
-            result = cursor.executemany(sql_insert_query)
+            cursor.execute(sql_insert_query, (ticker, company_name))
+            print (cursor.rowcount, "Record inserted successfully into companies table")
+        except:
+            pass
+
+def get_company_id(ticker, company_name):
+    ensure_mysql_conn()
+    sql_select_query = """SELECT `id`
+    FROM `companies`
+    WHERE `ticker` = %s AND `name` = %s"""
+
+    keyword_id = 0
+    with __get_cursor() as cursor:
+        result = cursor.execute(sql_select_query, (ticker, company_name))
+        result = cursor.fetchone()
+    if result:
+        return result['id']
+    else:
+        store_companies(ticker, company_name)
+        return get_company_id(ticker, company_name)
+
+
+def save_earnings_data(company_data):
+    ensure_mysql_conn()
+
+    earning_dates_list = [data[1] for data in company_data]
+
+    with __get_cursor() as cursor:
+        format_strings = ','.join(['%s'] * len(earning_dates_list))
+        cursor.execute("DELETE FROM earning_dates WHERE call_date IN (%s)" % format_strings,
+            tuple(earning_dates_list))
+        print (cursor.rowcount, "Record deleted successfully from earning dates table")
+
+    sql_insert_earnings_date_query = "INSERT INTO earning_dates (company_id, call_date, call_time) VALUES (%s, %s, %s)"
+
+    with __get_cursor() as cursor:
+        try:
+            result = cursor.executemany(sql_insert_earnings_date_query, company_data)
         except Exception as exc:
-            raise RuntimeError("company: {}".format(company)) from exc
-        print (cursor.rowcount, "Record inserted successfully into actuals table")
+            raise RuntimeError("company_data: {}".format(company_data)) from exc
+        print (cursor.rowcount, "Record inserted successfully into earning_dates table")
 
 def ensure_mysql_conn():
     global mysql_conn
-
     if not mysql_conn:
         try:
             mysql_conn = pymysql.connect(**mysql_config)
         except OperationalError:
-            # If production settings fail, use local development ones
-            mysql_config['unix_socket'] = f'/cloudsql/{CONNECTION_NAME}'
-            mysql_conn = pymysql.connect(**mysql_config)
-
-hello_pubsub()
-
+            print('error')
