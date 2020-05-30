@@ -35,6 +35,31 @@ def __get_cursor():
         mysql_conn.ping(reconnect=True)
         return mysql_conn.cursor()
 
+def cloud_function_get_earnings(request):
+    """HTTP Cloud Function.
+    Args:
+        request (flask.Request): The request object.
+        <http://flask.pocoo.org/docs/1.0/api/#flask.Request>
+    Returns:
+        The response text, or any set of values that can be turned into a
+        Response object using `make_response`
+        <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
+    """
+    request_json = request.get_json(silent=True)
+    request_args = request.args
+
+    ticker = ''
+    if request_json:
+        print 'request_json'
+        print request_json['ticker']
+        ticker = request_json['ticker']
+    elif request_args:
+        print 'request_json'
+        print request_args['ticker']
+        ticker = request_args['ticker']
+
+    return 'Hello {}!'.format(escape(ticker))
+
 def cloud_function_update_earnings(payload, context):
     start = arrow.utcnow().floor('day')
     end = arrow.utcnow().floor('day').shift(days=60)
