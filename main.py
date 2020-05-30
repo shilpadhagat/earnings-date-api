@@ -53,26 +53,48 @@ def cloud_function_get_earnings(request):
 
     request_args = request.args
     if not request_args:
-        raise ValueError("args is invalid, or missing properties")
+        return "args is invalid, or missing properties"
     
     ticker = request_args.get('ticker', None)
     date = request_args.get('date', None)
 
     if ticker is None and date is None:
-        raise ValueError("ticker and date both cant be null")
+        return "ticker and date both cant be null"
     elif ticker is not None and date is not None:
-        raise ValueError("Can only provide either ticker or date")
+        raise "Can only provide either ticker or date"
 
-    earnings = [
-        {'ticker': 'abc', 'date': '2020-06-23', 'time': 'bmo'},
-    ]
-
-    # if ticker:
-    #     earnings = fetch_earnings_for_ticker(escape(ticker))
-    # else:
-    #     earnings = fetch_earnings_for_date(escape(date))
+    if ticker:
+        earnings = fetch_earnings_for_ticker(escape(ticker))
+    else:
+        earnings = fetch_earnings_for_date(escape(date))
 
     return jsonify(earnings)
+
+def fetch_earnings_for_ticker(ticker):
+    ensure_mysql_conn()
+    sql_select_query = "SELECT `id` FROM `companies` WHERE `ticker` = %s "
+
+    with __get_cursor() as cursor:
+        result = cursor.execute(sql_select_query, (ticker,))
+        result = cursor.fetchone()
+    company_id = None
+    if result:
+        company_id = result['id']
+    
+    sql_select_call_date_time_query = "SELECT `call_date`, `call_time` FROM `earning_dates` WHERE `company_id` = %s "
+
+    with __get_cursor() as cursor:
+        result = cursor.execute(sql_select_call_date_time_query, (company_id,))
+        result = cursor.fetchall()
+    
+    return [
+        {
+            'ticker': ticker,
+            'date': row['call_date'],
+            'time': row['call_time'],
+        } 
+        for row in result:
+    ]
 
 def cloud_function_update_earnings(payload, context):
     start = arrow.utcnow().floor('day')
@@ -147,19 +169,17 @@ def get_company_id(ticker, company_name):
     ensure_mysql_conn()
     sql_select_query = """SELECT `id`
     FROM `companies`
-    WHERE `ticker` = %s AND `name` = %s"""
+    WHERE `ticker` = %s"""
 
-    keyword_id = 0
     with __get_cursor() as cursor:
-        result = cursor.execute(sql_select_query, (ticker, company_name))
+        result = cursor.execute(sql_select_query, (ticker,))
         result = cursor.fetchone()
     if result:
         return result['id']
     else:
         store_companies(ticker, company_name)
         return get_company_id(ticker, company_name)
-
-
+    
 def save_earnings_data(company_data):
     ensure_mysql_conn()
 
