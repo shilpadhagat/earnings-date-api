@@ -49,9 +49,8 @@ def cloud_function_get_earnings(request):
         <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
     """
     request_json = request.get_json(silent=True)
-    request_args = request.args
     if not request_json:
-        return 'json request and params needed'
+        raise ValueError("JSON is invalid, or missing properties")
     
     ticker = request_json.get('ticker', None)
     date = request_json.get('date', None)
