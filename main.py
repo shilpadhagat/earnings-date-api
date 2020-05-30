@@ -48,8 +48,10 @@ def cloud_function_get_earnings(request):
         Response object using `make_response`
         <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
     """
+    print(request.method)
+    print('request', request)
     if request.method != 'GET':
-        raise ValueError("Only GET is supported")
+        return abort(405)
 
     request_json = request.get_json(silent=True)
     if not request_json:
