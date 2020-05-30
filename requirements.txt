@@ -1,4 +1,5 @@
 bs4==0.0.1
 requests==2.22.0
-PyMySQL
-arrow
+PyMySQL==0.9.3
+arrow==0.15.6
+flask==1.1.2

@@ -5,6 +5,8 @@ from pymysql.err import OperationalError
 import arrow
 import time
 import os
+from flask import escape
+
 
 DB_HOST = os.environ.get("DB_HOST")
 DB_USER = os.environ.get("DB_USER")
