@@ -45,6 +45,8 @@ def cloud_function_get_earnings(request):
         Response object using `make_response`
         <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
     """
+    print('123')
+    print(request)
     request_json = request.get_json(silent=True)
     request_args = request.args
 
