@@ -48,31 +48,23 @@ def cloud_function_get_earnings(request):
         Response object using `make_response`
         <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
     """
-    print(request.method)
-    print('request', request)
-    if request.method != 'GET':
-        return abort(405)
-
     request_json = request.get_json(silent=True)
+    request_args = request.args
     if not request_json:
-        raise ValueError("JSON is invalid, or missing properties")
+        return 'json request and params needed'
     
     ticker = request_json.get('ticker', None)
     date = request_json.get('date', None)
 
     if ticker is None and date is None:
-        raise ValueError("ticker and date both cant be null")
+        pass
     elif ticker is not None and date is not None:
-        raise ValueError("Can only provide either ticker or date")
+        pass
 
-    earnings = [
-        {'ticker': 'abc', 'date': '2020-06-23', 'time': 'bmo'},
-    ]
-
-    # if ticker:
-    #     earnings = fetch_earnings_for_ticker(escape(ticker))
-    # else:
-    #     earnings = fetch_earnings_for_date(escape(date))
+    if ticker:
+        earnings = fetch_earnings_for_ticker(escape(ticker))
+    else:
+        earnings = fetch_earnings_for_date(escape(date))
 
     return jsonify(earnings)
 
