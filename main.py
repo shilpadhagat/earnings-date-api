@@ -50,12 +50,12 @@ def cloud_function_get_earnings(request):
 
     ticker = ''
     if request_json:
-        print 'request_json'
-        print request_json['ticker']
+        print('request_json')
+        print(request_json['ticker'])
         ticker = request_json['ticker']
     elif request_args:
-        print 'request_json'
-        print request_args['ticker']
+        print('request_json')
+        print(request_args['ticker'])
         ticker = request_args['ticker']
 
     return 'Hello {}!'.format(escape(ticker))
