@@ -62,12 +62,14 @@ def cloud_function_get_earnings(request):
     elif ticker is not None and date is not None:
         return "Can only provide either ticker or date"
     print('ticker', ticker)
-    if ticker:
-        earnings = fetch_earnings_for_ticker(escape(ticker))
+    #if ticker:
+    earnings = fetch_earnings_for_ticker(escape(ticker))
+    #else:
+    #    earnings = fetch_earnings_for_date(escape(date))
+    if earnings:
+        return json.dumps(earnings)
     else:
-        earnings = fetch_earnings_for_date(escape(date))
-
-    return json.dumps(earnings)
+        return []
 
 def fetch_earnings_for_ticker(ticker):
     ensure_mysql_conn()
