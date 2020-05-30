@@ -93,7 +93,7 @@ def fetch_earnings_for_ticker(ticker):
             'date': row['call_date'],
             'time': row['call_time'],
         } 
-        for row in result:
+        for row in result
     ]
 
 def cloud_function_update_earnings(payload, context):
