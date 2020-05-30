@@ -89,7 +89,7 @@ def fetch_earnings_for_ticker(ticker):
     return [
         {
             'ticker': ticker,
-            'date': row['call_date'],
+            'date': row['call_date'].strftime('%Y-%m-%d'),
             'time': row['call_time'],
         } 
         for row in result
@@ -207,3 +207,6 @@ def ensure_mysql_conn():
         except OperationalError:
             print('error')
 
+result = fetch_earnings_for_ticker('ATHM')
+print(result)
+print(json.dumps(result))
