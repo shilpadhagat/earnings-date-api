@@ -55,7 +55,8 @@ def cloud_function_get_earnings(request):
         return "args is invalid, or missing properties"
     
     ticker = request_args.get('ticker', None)
-    date = request_args.get('date', None)
+    print(ticker)
+    #date = request_args.get('date', None)
 
     if ticker is None and date is None:
         return "ticker and date both cant be null"
