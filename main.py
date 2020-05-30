@@ -59,7 +59,7 @@ def cloud_function_get_earnings(request):
         print(request_json['ticker'])
         ticker = request_json['ticker']
     elif request_args:
-        print('request_json')
+        print('request_args')
         print(request_args['ticker'])
         ticker = request_args['ticker']
 
