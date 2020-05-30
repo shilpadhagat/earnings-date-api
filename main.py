@@ -6,8 +6,7 @@ import arrow
 import time
 import os
 from flask import escape
-from flask import jsonify
-
+from json
 
 DB_HOST = os.environ.get("DB_HOST")
 DB_USER = os.environ.get("DB_USER")
@@ -61,14 +60,14 @@ def cloud_function_get_earnings(request):
     if ticker is None and date is None:
         return "ticker and date both cant be null"
     elif ticker is not None and date is not None:
-        raise "Can only provide either ticker or date"
+        return "Can only provide either ticker or date"
 
     if ticker:
         earnings = fetch_earnings_for_ticker(escape(ticker))
     else:
         earnings = fetch_earnings_for_date(escape(date))
 
-    return jsonify(earnings)
+    return josn.dumps(earnings)
 
 def fetch_earnings_for_ticker(ticker):
     ensure_mysql_conn()
@@ -207,3 +206,4 @@ def ensure_mysql_conn():
             mysql_conn = pymysql.connect(**mysql_config)
         except OperationalError:
             print('error')
+
