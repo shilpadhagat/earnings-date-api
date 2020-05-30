@@ -49,8 +49,8 @@ def cloud_function_get_earnings(request):
     """
     if request.method != 'GET':
         return abort(405)
-
     request_args = request.args
+    print('request_args', request_args)
     if not request_args:
         return "args is invalid, or missing properties"
     
@@ -61,13 +61,13 @@ def cloud_function_get_earnings(request):
         return "ticker and date both cant be null"
     elif ticker is not None and date is not None:
         return "Can only provide either ticker or date"
-
+    print('ticker', ticker)
     if ticker:
         earnings = fetch_earnings_for_ticker(escape(ticker))
     else:
         earnings = fetch_earnings_for_date(escape(date))
 
-    return josn.dumps(earnings)
+    return json.dumps(earnings)
 
 def fetch_earnings_for_ticker(ticker):
     ensure_mysql_conn()
@@ -207,6 +207,3 @@ def ensure_mysql_conn():
         except OperationalError:
             print('error')
 
-result = fetch_earnings_for_ticker('ATHM')
-print(result)
-print(json.dumps(result))
