@@ -66,12 +66,15 @@ def cloud_function_get_earnings(request):
     earnings = fetch_earnings_for_ticker(escape(ticker))
     #else:
     #    earnings = fetch_earnings_for_date(escape(date))
+    print(earnings)
     if earnings:
         return json.dumps(earnings)
     else:
         return []
 
 def fetch_earnings_for_ticker(ticker):
+    print('in fetch_earnings_for_ticker')
+    print('ticker', ticker)
     ensure_mysql_conn()
     sql_select_query = "SELECT `id` FROM `companies` WHERE `ticker` = %s "
 
