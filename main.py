@@ -56,7 +56,7 @@ def cloud_function_get_earnings(request):
     
     ticker = request_args.get('ticker', None)
     print(ticker)
-    #date = request_args.get('date', None)
+    date = request_args.get('date', None)
 
     if ticker is None and date is None:
         return "ticker and date both cant be null"
