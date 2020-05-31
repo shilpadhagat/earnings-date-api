@@ -64,12 +64,9 @@ def cloud_function_get_earnings(request):
     if ticker:
         earnings = fetch_earnings_for_ticker(ticker)
     else:
-        earnings = fetch_earnings_for_ticker(date)
+        earnings = fetch_earnings_for_date(date)
 
-    if earnings:
-        return jsonify(earnings)
-    else:
-        return jsonify([])
+    return jsonify(earnings)
 
 def fetch_earnings_for_date(date):
     ensure_mysql_conn()
