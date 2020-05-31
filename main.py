@@ -5,7 +5,7 @@ from pymysql.err import OperationalError
 import arrow
 import time
 import os
-from flask import escape
+from flask import escape, jsonify
 import json
 
 DB_HOST = os.environ.get("DB_HOST")
@@ -63,15 +63,12 @@ def cloud_function_get_earnings(request):
     elif ticker is not None and date is not None:
         return "Can only provide either ticker or date"
     print('ticker', ticker)
-    #if ticker:
-    earnings = fetch_earnings_for_ticker(escape(ticker))
-    #else:
-    #    earnings = fetch_earnings_for_date(escape(date))
+    earnings = fetch_earnings_for_ticker(ticker)
     print(earnings)
     if earnings:
-        return json.dumps(earnings)
+        return jsonify(earnings)
     else:
-        return []
+        return jsonify([]])
 
 def fetch_earnings_for_ticker(ticker):
     print('in fetch_earnings_for_ticker')
