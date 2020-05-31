@@ -50,44 +50,69 @@ def cloud_function_get_earnings(request):
     if request.method != 'GET':
         return abort(405)
     request_args = request.args
-    print('request_args', request_args)
     if not request_args:
         return "args is invalid, or missing properties"
     
     ticker = request_args.get('ticker', None)
-    print(ticker)
     date = request_args.get('date', None)
 
     if ticker is None and date is None:
         return "ticker and date both cant be null"
     elif ticker is not None and date is not None:
         return "Can only provide either ticker or date"
-    print('ticker', ticker)
-    earnings = fetch_earnings_for_ticker(ticker)
-    print(earnings)
+    
+    if ticker:
+        earnings = fetch_earnings_for_ticker(ticker)
+    else:
+        earnings = fetch_earnings_for_ticker(date)
+
     if earnings:
         return jsonify(earnings)
     else:
         return jsonify([])
 
-def fetch_earnings_for_ticker(ticker):
-    print('in fetch_earnings_for_ticker')
-    print('ticker', ticker)
+def fetch_earnings_for_date(date):
     ensure_mysql_conn()
-    sql_select_query = "SELECT `id` FROM `companies` WHERE `ticker` = %s "
+    sql_select_query = """
+        SELECT
+            c.ticker,
+            ed.call_time
+        FROM
+            companies c
+            JOIN earning_dates ed ON c.id = ed.company_id
+        WHERE
+            ed.call_date = %s
+    """
+
+    with __get_cursor() as cursor:
+        result = cursor.execute(sql_select_query, (date,))
+        result = cursor.fetchall()
+
+    return [
+        {
+            'ticker': row['ticker'],
+            'date': date,
+            'time': row['call_time'],
+        } 
+        for row in result
+    ]
+
+def fetch_earnings_for_ticker(ticker):
+    ensure_mysql_conn()
+    sql_select_query = """
+        SELECT
+            ed.call_date,
+            ed.call_time
+        FROM
+            companies c
+            JOIN earning_dates ed ON c.id = ed.company_id
+        WHERE
+            c.ticker = %s
+    """
 
     with __get_cursor() as cursor:
         result = cursor.execute(sql_select_query, (ticker,))
-        result = cursor.fetchone()
-    company_id = None
-    if result:
-        company_id = result['id']
-    
-    sql_select_call_date_time_query = "SELECT `call_date`, `call_time` FROM `earning_dates` WHERE `company_id` = %s "
-
-    with __get_cursor() as cursor:
-        result = cursor.execute(sql_select_call_date_time_query, (company_id,))
-        result = cursor.fetchall()
+        result = cursor.fetchall()    
     
     return [
         {
@@ -209,4 +234,3 @@ def ensure_mysql_conn():
             mysql_conn = pymysql.connect(**mysql_config)
         except OperationalError:
             print('error')
-
