@@ -68,7 +68,7 @@ def cloud_function_get_earnings(request):
     if earnings:
         return jsonify(earnings)
     else:
-        return jsonify([]])
+        return jsonify([])
 
 def fetch_earnings_for_ticker(ticker):
     print('in fetch_earnings_for_ticker')
