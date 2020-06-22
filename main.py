@@ -49,24 +49,30 @@ def cloud_function_get_earnings(request):
     """
     if request.method != 'GET':
         return abort(405)
+
+    # Set CORS headers for the main request
+    headers = {
+        'Access-Control-Allow-Origin': '*'
+    }
+
     request_args = request.args
     if not request_args:
-        return "args is invalid, or missing properties"
+        return "args is invalid, or missing properties", 400, headers
     
     ticker = request_args.get('ticker', None)
     date = request_args.get('date', None)
 
     if ticker is None and date is None:
-        return "ticker and date both cant be null"
+        return "ticker and date both cant be null", 400, headers
     elif ticker is not None and date is not None:
-        return "Can only provide either ticker or date"
+        return "Can only provide either ticker or date", 400, headers
     
     if ticker:
         earnings = fetch_earnings_for_ticker(ticker)
     else:
         earnings = fetch_earnings_for_date(date)
 
-    return jsonify(earnings)
+    return jsonify(earnings), 200, headers
 
 def fetch_earnings_for_date(date):
     ensure_mysql_conn()
@@ -133,19 +139,21 @@ def earnings_date_scraper(for_date):
     company_data = []
     # Sending an HTTP request to a URL. Make a GET request to fetch the raw HTML content
     earnings_for_date = for_date.strftime('%Y-%m-%d')
+    print('earnings_for_date', earnings_for_date)
     payload = {
         'day': earnings_for_date
     }
     earnings_api_url = "https://finance.yahoo.com/calendar/earnings"
     earnings = requests.get(earnings_api_url, params=payload)
-    
     # Parse the HTML content
     soup = BeautifulSoup(earnings.text, 'html.parser')
+    #print('soup', soup)
     results = soup.find(id='cal-res-table')
+    print('results', results)
     if not results:
         return
     table = results.find('table', class_="W(100%)")
-    
+    print(results)
     table_head = table.find('thead')
     head_row = table_head.find('tr')
     cols = head_row.find_all('th')
@@ -154,10 +162,12 @@ def earnings_date_scraper(for_date):
 
     table_body = table.find('tbody')
     rows = table_body.find_all('tr')
+    print(company_data)
     for row in rows:
         row_data = row.find_all('td')
         row_vals = [data.text.strip() for data in row_data]
         company_data.append([val for val in row_vals if val])
+    print(company_data)
 
     for idx, col_name in enumerate(company_data[0]):
         if col_name == 'Symbol':
@@ -174,6 +184,7 @@ def earnings_date_scraper(for_date):
             earnings_for_date,
             datum[earnings_time_idx]
         ])
+    print(records_to_insert)
     save_earnings_data(records_to_insert)
 
 def store_companies(ticker, company_name):
@@ -231,3 +242,8 @@ def ensure_mysql_conn():
             mysql_conn = pymysql.connect(**mysql_config)
         except OperationalError:
             print('error')
+start_date = arrow.utcnow().floor('day').shift(days=3)
+start_date = start_date.naive
+#start_date = start_date.strftime('%Y-%m-%d')
+print(start_date)
+earnings_date_scraper(start_date)
