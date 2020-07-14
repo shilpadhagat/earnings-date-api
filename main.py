@@ -5,8 +5,7 @@ from pymysql.err import OperationalError
 import arrow
 import time
 import os
-from flask import escape, jsonify
-import json
+from flask import jsonify
 
 DB_HOST = os.environ.get("DB_HOST")
 DB_USER = os.environ.get("DB_USER")
@@ -47,6 +46,8 @@ def cloud_function_get_earnings(request):
         Response object using `make_response`
         <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>.
     """
+    time.sleep(0.1)
+
     if request.method != 'GET':
         return abort(405)
 
@@ -71,7 +72,7 @@ def cloud_function_get_earnings(request):
         earnings = fetch_earnings_for_ticker(ticker)
     else:
         earnings = fetch_earnings_for_date(date)
-
+    
     return jsonify(earnings), 200, headers
 
 def fetch_earnings_for_date(date):
@@ -79,7 +80,8 @@ def fetch_earnings_for_date(date):
     sql_select_query = """
         SELECT
             c.ticker,
-            ed.call_time
+            ed.call_time,
+            c.name
         FROM
             companies c
             JOIN earning_dates ed ON c.id = ed.company_id
@@ -90,22 +92,24 @@ def fetch_earnings_for_date(date):
     with __get_cursor() as cursor:
         result = cursor.execute(sql_select_query, (date,))
         result = cursor.fetchall()
-
-    return [
+    earnings_data = [
         {
             'ticker': row['ticker'],
             'date': date,
             'time': row['call_time'],
+            'name': row['name'],
         } 
         for row in result
     ]
+    return sorted(earnings_data, key=lambda data: data['ticker']) 
 
 def fetch_earnings_for_ticker(ticker):
     ensure_mysql_conn()
     sql_select_query = """
         SELECT
             ed.call_date,
-            ed.call_time
+            ed.call_time,
+            c.name
         FROM
             companies c
             JOIN earning_dates ed ON c.id = ed.company_id
@@ -115,45 +119,48 @@ def fetch_earnings_for_ticker(ticker):
 
     with __get_cursor() as cursor:
         result = cursor.execute(sql_select_query, (ticker,))
-        result = cursor.fetchall()    
-    
-    return [
+        result = cursor.fetchall()  
+
+    earnings_data = [
         {
             'ticker': ticker,
             'date': row['call_date'].strftime('%Y-%m-%d'),
             'time': row['call_time'],
+            'name': row['name'],
         } 
         for row in result
     ]
+
+    return sorted(earnings_data, key=lambda data: tuple(map(int, data['date'].split('-'))), reverse=True)
 
 def cloud_function_update_earnings(payload, context):
     start = arrow.utcnow().floor('day')
     end = arrow.utcnow().floor('day').shift(days=60)
     while start < end:
+        delete_earnings_for_date(start.naive)
         earnings_date_scraper(start.naive)
         start = start.shift(days=1)
     earnings_date_scraper(start.naive)
 
-def earnings_date_scraper(for_date):
+def earnings_date_scraper(for_date, offset=0):
     time.sleep(2)
     company_data = []
     # Sending an HTTP request to a URL. Make a GET request to fetch the raw HTML content
     earnings_for_date = for_date.strftime('%Y-%m-%d')
     print('earnings_for_date', earnings_for_date)
     payload = {
-        'day': earnings_for_date
+        'day': earnings_for_date,
+        'offset': offset,
+        'size': 100
     }
     earnings_api_url = "https://finance.yahoo.com/calendar/earnings"
     earnings = requests.get(earnings_api_url, params=payload)
     # Parse the HTML content
     soup = BeautifulSoup(earnings.text, 'html.parser')
-    #print('soup', soup)
     results = soup.find(id='cal-res-table')
-    print('results', results)
     if not results:
         return
     table = results.find('table', class_="W(100%)")
-    print(results)
     table_head = table.find('thead')
     head_row = table_head.find('tr')
     cols = head_row.find_all('th')
@@ -162,7 +169,7 @@ def earnings_date_scraper(for_date):
 
     table_body = table.find('tbody')
     rows = table_body.find_all('tr')
-    print(company_data)
+    rows_len = len(rows)
     for row in rows:
         row_data = row.find_all('td')
         row_vals = [data.text.strip() for data in row_data]
@@ -186,6 +193,8 @@ def earnings_date_scraper(for_date):
         ])
     print(records_to_insert)
     save_earnings_data(records_to_insert)
+    if (rows_len >= 100):
+        earnings_date_scraper(for_date, offset + 100)
 
 def store_companies(ticker, company_name):
     sql_insert_query = """INSERT INTO `companies`
@@ -214,18 +223,16 @@ def get_company_id(ticker, company_name):
     else:
         store_companies(ticker, company_name)
         return get_company_id(ticker, company_name)
-    
-def save_earnings_data(company_data):
-    ensure_mysql_conn()
 
-    earning_dates_list = [data[1] for data in company_data]
+def delete_earnings_data(call_date):
+    ensure_mysql_conn()
+    delete_earnings_for_date = call_date.strftime('%Y-%m-%d')
 
     with __get_cursor() as cursor:
-        format_strings = ','.join(['%s'] * len(earning_dates_list))
-        cursor.execute("DELETE FROM earning_dates WHERE call_date IN (%s)" % format_strings,
-            tuple(earning_dates_list))
+        cursor.execute("DELETE FROM earning_dates WHERE call_date = (%s)", (delete_earnings_for_date,) )
         print (cursor.rowcount, "Record deleted successfully from earning dates table")
-
+    
+def save_earnings_data(company_data):
     sql_insert_earnings_date_query = "INSERT INTO earning_dates (company_id, call_date, call_time) VALUES (%s, %s, %s)"
 
     with __get_cursor() as cursor:
@@ -242,8 +249,14 @@ def ensure_mysql_conn():
             mysql_conn = pymysql.connect(**mysql_config)
         except OperationalError:
             print('error')
-start_date = arrow.utcnow().floor('day').shift(days=3)
-start_date = start_date.naive
-#start_date = start_date.strftime('%Y-%m-%d')
-print(start_date)
-earnings_date_scraper(start_date)
+
+start_date = arrow.utcnow().floor('day').shift(days=-400)
+end_date = arrow.utcnow()
+while start_date < end_date:
+    print(start_date)
+    delete_earnings_data(start_date.naive)
+    earnings_date_scraper(start_date.naive)
+    start_date = start_date.shift(days=1)
+delete_earnings_data(start_date.naive)
+earnings_date_scraper(start_date.naive)
+

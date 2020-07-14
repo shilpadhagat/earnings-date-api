@@ -1,1 +1,43 @@
 @import '~antd/dist/antd.css';
+
+.ticker-input {
+    width: 65%;
+}
+
+.header {
+    position: fixed;
+    z-index: 1;
+    width: 100%;
+    color: white;
+    text-align: center;
+    font-family: Tahoma;
+    font-size: 25px;
+}
+
+.site-layout {
+    padding: 0 50px;
+    margin-top: 64;
+}
+
+.site-layout-background {
+    padding: 24;
+    min-height: 100;
+}
+
+.divider {
+    color: #333;
+    font-weight: normal;
+}
+
+.date-col .ticker-col .get-button {
+    vertical-align: middle;
+}
+
+.or-col {
+    vertical-align: middle;
+    padding: 4px;
+}
+
+.footer {
+    text-align: center;
+}
