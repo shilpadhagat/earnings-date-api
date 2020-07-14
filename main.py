@@ -250,13 +250,13 @@ def ensure_mysql_conn():
         except OperationalError:
             print('error')
 
-start_date = arrow.utcnow().floor('day').shift(days=-400)
-end_date = arrow.utcnow()
-while start_date < end_date:
-    print(start_date)
-    delete_earnings_data(start_date.naive)
-    earnings_date_scraper(start_date.naive)
-    start_date = start_date.shift(days=1)
-delete_earnings_data(start_date.naive)
-earnings_date_scraper(start_date.naive)
+# start_date = arrow.utcnow().floor('day').shift(days=-400)
+# end_date = arrow.utcnow()
+# while start_date < end_date:
+#     print(start_date)
+#     delete_earnings_data(start_date.naive)
+#     earnings_date_scraper(start_date.naive)
+#     start_date = start_date.shift(days=1)
+# delete_earnings_data(start_date.naive)
+# earnings_date_scraper(start_date.naive)
 
