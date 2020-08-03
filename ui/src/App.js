@@ -102,7 +102,7 @@ class App extends React.Component {
         </Header>
         <Content className="site-layout" style={{ padding: '0 50px', marginTop: 64 }}>
           <div className="site-layout-background" style={{ padding: 24, minHeight: 100 }}>
-            <Text strong>URL:  {this.state.url}</Text>
+            <Text strong>{this.state.url}</Text>
             <Divider orientation="left" style={{ color: '#333', fontWeight: 'normal' }}>
             </Divider>
             <Form onFinish={this.fetchEarningsData}>
