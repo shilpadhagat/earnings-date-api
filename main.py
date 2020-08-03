@@ -1,11 +1,12 @@
+import os
+import time
+
+import arrow
+import pymysql
 import requests
 from bs4 import BeautifulSoup
-import pymysql
-from pymysql.err import OperationalError
-import arrow
-import time
-import os
 from flask import jsonify
+from pymysql.err import OperationalError
 
 DB_HOST = os.environ.get("DB_HOST")
 DB_USER = os.environ.get("DB_USER")
@@ -24,6 +25,7 @@ mysql_config = {
 
 mysql_conn = None
 
+
 def __get_cursor():
     """
     Helper function to get a cursor
@@ -35,6 +37,7 @@ def __get_cursor():
     except OperationalError:
         mysql_conn.ping(reconnect=True)
         return mysql_conn.cursor()
+
 
 def cloud_function_get_earnings(request):
     """HTTP Cloud Function.
@@ -59,7 +62,7 @@ def cloud_function_get_earnings(request):
     request_args = request.args
     if not request_args:
         return "args is invalid, or missing properties", 400, headers
-    
+
     ticker = request_args.get('ticker', None)
     date = request_args.get('date', None)
 
@@ -67,13 +70,14 @@ def cloud_function_get_earnings(request):
         return "ticker and date both cant be null", 400, headers
     elif ticker is not None and date is not None:
         return "Can only provide either ticker or date", 400, headers
-    
+
     if ticker:
         earnings = fetch_earnings_for_ticker(ticker)
     else:
         earnings = fetch_earnings_for_date(date)
-    
+
     return jsonify(earnings), 200, headers
+
 
 def fetch_earnings_for_date(date):
     ensure_mysql_conn()
@@ -98,10 +102,11 @@ def fetch_earnings_for_date(date):
             'date': date,
             'time': row['call_time'],
             'name': row['name'],
-        } 
+        }
         for row in result
     ]
-    return sorted(earnings_data, key=lambda data: data['ticker']) 
+    return sorted(earnings_data, key=lambda data: data['ticker'])
+
 
 def fetch_earnings_for_ticker(ticker):
     ensure_mysql_conn()
@@ -119,7 +124,7 @@ def fetch_earnings_for_ticker(ticker):
 
     with __get_cursor() as cursor:
         result = cursor.execute(sql_select_query, (ticker,))
-        result = cursor.fetchall()  
+        result = cursor.fetchall()
 
     earnings_data = [
         {
@@ -127,20 +132,24 @@ def fetch_earnings_for_ticker(ticker):
             'date': row['call_date'].strftime('%Y-%m-%d'),
             'time': row['call_time'],
             'name': row['name'],
-        } 
+        }
         for row in result
     ]
 
     return sorted(earnings_data, key=lambda data: tuple(map(int, data['date'].split('-'))), reverse=True)
 
+
 def cloud_function_update_earnings(payload, context):
-    start = arrow.utcnow().floor('day')
-    end = arrow.utcnow().floor('day').shift(days=60)
-    while start < end:
-        delete_earnings_for_date(start.naive)
-        earnings_date_scraper(start.naive)
-        start = start.shift(days=1)
-    earnings_date_scraper(start.naive)
+    start_date = arrow.utcnow().floor('day')
+    end_date = arrow.utcnow().floor('day').shift(days=60)
+    while start_date < end_date:
+        print(start_date)
+        delete_earnings_data(start_date.naive)
+        earnings_date_scraper(start_date.naive)
+        start_date = start_date.shift(days=1)
+    delete_earnings_data(start_date.naive)
+    earnings_date_scraper(start_date.naive)
+
 
 def earnings_date_scraper(for_date, offset=0):
     time.sleep(2)
@@ -196,6 +205,7 @@ def earnings_date_scraper(for_date, offset=0):
     if (rows_len >= 100):
         earnings_date_scraper(for_date, offset + 100)
 
+
 def store_companies(ticker, company_name):
     sql_insert_query = """INSERT INTO `companies`
         (`ticker`, `name`)
@@ -205,9 +215,10 @@ def store_companies(ticker, company_name):
     with __get_cursor() as cursor:
         try:
             cursor.execute(sql_insert_query, (ticker, company_name))
-            print (cursor.rowcount, "Record inserted successfully into companies table")
+            print(cursor.rowcount, "Record inserted successfully into companies table")
         except:
             pass
+
 
 def get_company_id(ticker, company_name):
     ensure_mysql_conn()
@@ -224,23 +235,29 @@ def get_company_id(ticker, company_name):
         store_companies(ticker, company_name)
         return get_company_id(ticker, company_name)
 
+
 def delete_earnings_data(call_date):
     ensure_mysql_conn()
     delete_earnings_for_date = call_date.strftime('%Y-%m-%d')
 
     with __get_cursor() as cursor:
-        cursor.execute("DELETE FROM earning_dates WHERE call_date = (%s)", (delete_earnings_for_date,) )
-        print (cursor.rowcount, "Record deleted successfully from earning dates table")
-    
+        cursor.execute(
+            "DELETE FROM earning_dates WHERE call_date = (%s)", (delete_earnings_for_date,))
+        print(cursor.rowcount, "Record deleted successfully from earning dates table")
+
+
 def save_earnings_data(company_data):
     sql_insert_earnings_date_query = "INSERT INTO earning_dates (company_id, call_date, call_time) VALUES (%s, %s, %s)"
 
     with __get_cursor() as cursor:
         try:
-            result = cursor.executemany(sql_insert_earnings_date_query, company_data)
+            result = cursor.executemany(
+                sql_insert_earnings_date_query, company_data)
         except Exception as exc:
-            raise RuntimeError("company_data: {}".format(company_data)) from exc
-        print (cursor.rowcount, "Record inserted successfully into earning_dates table")
+            raise RuntimeError(
+                "company_data: {}".format(company_data)) from exc
+        print(cursor.rowcount, "Record inserted successfully into earning_dates table")
+
 
 def ensure_mysql_conn():
     global mysql_conn
@@ -250,7 +267,8 @@ def ensure_mysql_conn():
         except OperationalError:
             print('error')
 
-# start_date = arrow.utcnow().floor('day').shift(days=-400)
+
+# start_date = arrow.utcnow().floor('day').shift(days=-90)
 # end_date = arrow.utcnow()
 # while start_date < end_date:
 #     print(start_date)
@@ -259,4 +277,3 @@ def ensure_mysql_conn():
 #     start_date = start_date.shift(days=1)
 # delete_earnings_data(start_date.naive)
 # earnings_date_scraper(start_date.naive)
-
